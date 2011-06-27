@@ -63,9 +63,6 @@ import Data.String
 import Control.Arrow
 
 
----------------------------------------------------------------------------
--- | Rect with information whichever Portrait or Horizontal.
-data RectPH = RectPH { x :: Int, y :: Int, width :: Int, height :: Int, isPortrait :: Bool }
 
 ----------------------------------------------------------------------------
 -- | X.Elementのラッパー use for String
@@ -76,28 +73,31 @@ elementS tag attrs children = X.Element (T.pack tag) (map (T.pack *** T.pack) at
 ----------------------------------------------------------------------------
 -- | RectPH 0 0 100 100 |-> [(("x","0"),("y","0"),("width","100"),("height","100"))]
 rectAttrs :: RectPH -> [(String,String)]
-rectAttrs RectPH{..} = [("x",show x),("y",show y),("width",show width),("height",show height)]
+rectAttrs RectPH{..} = [("style","fill-opacity:0.3;fill:#880000;"),("x",show x),("y",show y),("width",show (width-1)),("height",show (height-1))]
 
 ---------------------------------------------------------------------------
 -- | Minimum Cell.
-getAtomicCell :: Label -> RectPH -> X.Node
-getAtomicCell label rect = elementS "rect" (rectAttrs rect) []
+getAtomicCell :: Label -> RectPH -> [X.Node]
+getAtomicCell label rect = [elementS "rect" (rectAttrs rect) [],elementS "text" (rectAttrs $ rect { y = y rect + height rect - 5}) [X.TextNode $ T.pack label]] 
    -- TODO: Label to paint.
 
 ----------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
-getTreeMapCell :: (Show a) => RectPH -> Tree a -> [X.Node]
-getTreeMapCell rect (Leaf a) = [getAtomicCell ((show a)::String) rect]
-getTreeMapCell rect (all_t@(Branch a ts)) = []  -- TODO: childrenのセルを描く map (\t -> percentage t all_t) ts
-  where
-    percentage t' ts' = floor $ ((fromIntegral $ volume t') / (fromIntegral $ volume ts'))
-        -- under construntion.
+getTreeMapCell :: (HaveVolume a,Show a) => RectPH -> Tree a -> [X.Node]
+getTreeMapCell rect (Leaf a) = getAtomicCell ((show a)::String) rect
+getTreeMapCell rect (all_t@(Branch a ts)) = 
+  (getAtomicCell ((show a)::String) rect)++( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
+
+divideBy :: RectPH -> [Int] -> [RectPH]
+divideBy (rc@RectPH{..}) vs = zipWith (\y' h' -> rc{y=y',height=h'}) (scanl (+) y $ scaleTo height) $ scaleTo height
+  -- | scaleTo l ; vsを拡大して和がlになるようにする
+  where scaleTo l = map (\h -> floor $ (fromIntegral h) / (fromIntegral $ sum vs)) $ map (*l) vs
 
 ----------------------------------------------------------------------------
 main = do
-  let tree = Leaf "foo"
+  let tree = Branch [10] $ [Leaf [1],Leaf [1,2],Leaf [1,2,3]]
   let inner_svg = getTreeMapCell (RectPH 0 0 100 100 True) tree
   let svg = elementS "svg" [("width","300"),("height","300")] inner_svg
   let elem = elementS "html" [("lang","ja")] [svg]
   B.writeFile "output.html" $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
-
+  

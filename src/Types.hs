@@ -17,6 +17,12 @@ instance HaveVolume a => HaveVolume (BinaryTree a) where
 instance (Eq a,HaveVolume a) => Ord (Tree a) where
   t1 <= t2 = (volume t1 <= volume t2)
 
+instance HaveVolume [a] where
+  volume = length
+
 type Label = String
 
 type Html = String
+
+-- | Rect with information whichever Portrait or Horizontal.
+data RectPH = RectPH { x :: Int, y :: Int, width :: Int, height :: Int, isPortrait :: Bool }
