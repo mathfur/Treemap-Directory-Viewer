@@ -1,24 +1,19 @@
 module Types where
 
-data Tree a = Leaf a | Branch a [Tree a] deriving (Eq,Show)
-data BinaryTree a = BinaryLeaf a | BinaryBranch (BinaryTree a) (BinaryTree a) deriving (Eq,Show)
+data Tree a b = Leaf a b | Branch a [Tree a b] deriving (Eq,Show)
 
 class HaveVolume a where
   volume :: a -> Int
 
-instance HaveVolume a => HaveVolume (Tree a) where
-  volume (Leaf a) = volume a
-  volume (Branch a ts) = sum $ map volume ts
+instance HaveVolume b => HaveVolume (Tree a b) where
+  volume (Leaf a b) = volume b
+  volume (Branch s ts) = sum $ map volume ts
 
-instance HaveVolume a => HaveVolume (BinaryTree a) where
-  volume (BinaryLeaf a) = volume a
-  volume (BinaryBranch t1 t2) = volume t1 + volume t2
-
-instance (Eq a,HaveVolume a) => Ord (Tree a) where
+instance (Eq a,Eq b,HaveVolume b) => Ord (Tree a b) where
   t1 <= t2 = (volume t1 <= volume t2)
 
-instance HaveVolume [a] where
-  volume = length
+instance HaveVolume Int where
+  volume = id
 
 type Label = String
 
