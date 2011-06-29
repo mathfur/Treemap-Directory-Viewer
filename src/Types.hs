@@ -20,4 +20,11 @@ type Label = String
 type Html = String
 
 -- | Rect with information whichever Portrait or Horizontal.
-data RectPH = RectPH { x :: Int, y :: Int, width :: Int, height :: Int, isPortrait :: Bool }
+data RectPH = RectPH {
+  x :: Int,
+  y :: Int,
+  width :: Int,
+  height :: Int,
+  isPortrait :: Bool,
+  depth :: Int
+}

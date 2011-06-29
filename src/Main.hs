@@ -27,9 +27,11 @@ import Control.Arrow
 import IO
 import Maybe (fromMaybe)
 
--- TODO: ラベルを/以降のみにする(23:13-)
--- TODO: ラベル大きさを深さと連動させる(23:33-)
--- TODO: ラベルのアルファ度を深さと連動させる(23:53-)
+-- TODO: ラベルを/以降のみにする on debugging
+-- TODO: ラベル大きさを深さと連動させる on debugging
+-- TODO: portrailラベルは縦に on debugging
+-- TODO: ラベルのアルファ度を深さと連動させる
+-- TODO: ノード以外のセルの背景色はなしにする
 
 ---------------------------------------------------------------------------
 -- | ファイルpathのライン数を得る
@@ -55,7 +57,7 @@ getDirTree topdir = do
     isDirectory <- doesDirectoryExist path
     if isDirectory
       then getDirTree path -- :: IO (Tree FilePath Int)
-      else (getFileSize path)>>=(\n -> return $ Leaf ( reverse $ take 7 $ reverse $ path ) $ fromIntegral $ fromMaybe 0 n ) -- :: IO (Tree FilePath Int)
+      else (getFileSize path)>>=(\n -> return $ Leaf path $ fromIntegral $ fromMaybe 0 n) -- :: IO (Tree FilePath Int)
   return $ Branch topdir resultTree -- :: IO (Tree FilePath Int)
   
 -- あとこれがいる
@@ -82,7 +84,15 @@ rectAttrs RectPH{..} = [("style","fill-opacity:0.3;fill:#880000;"),("x",show x),
 ---------------------------------------------------------------------------
 -- | Minimum Cell.
 getAtomicCell :: Label -> RectPH -> [X.Node]
-getAtomicCell label rect = [elementS "rect" (rectAttrs rect) [],elementS "text" (rectAttrs $ rect { y = y rect + height rect - 5}) [X.TextNode $ T.pack label]] 
+getAtomicCell label rect = [elementS "rect" (rectAttrs rect) [],adjustedText (last $ T.split (=='/') $ T.pack label) rect] 
+
+----------------------------------------------------------------------------
+-- |
+adjustedText :: Text -> RectPH -> X.Node
+adjustedText label RectPH{..}
+  | T.length label == 0 = elementS "text" [] [X.TextNode "<>"]
+  | isPortrait = elementS "text" [("style","fill-opacity:0.3;fill:#880000;"),("x",show $ x+(width `quot` 2)),("y",show y),("writing-mode","tb"),("textlength",show height),("font-size",show $ min height (width `quot` (T.length label)))] $ [X.TextNode label]
+  | otherwise  = elementS "text" [("style","fill-opacity:0.3;fill:#880000;"),("x",show x),("y",show $ y+(height `quot` 2)),("textlength",show width),("font-size",show $ min height (width `quot` (T.length label)))] $ [X.TextNode label]
 
 ----------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
@@ -92,11 +102,14 @@ getTreeMapCell rect (all_t@(Branch a ts)) =
   (getAtomicCell (show a::String) rect)++( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
--- | TODO: 縦横対応
+-- | rectPH is divide By vs ratio.
+-- if vs = [1,2,3], then rect devideBy vs is three rect.
+-- second one is twice size then frist one.
+-- third one is three-second size then second one.
 divideBy :: RectPH -> [Int] -> [RectPH]
 divideBy (rc@RectPH{..}) vs
-  | isPortrait = zipWith (\y' h' -> rc{y=y',height=h',isPortrait = not isPortrait}) ((scanl (+) y) $ scaleTo height) $ scaleTo height
-  | otherwise  = zipWith (\x' w' -> rc{x=x',width=w' ,isPortrait = not isPortrait}) ((scanl (+) x) $ scaleTo width) $ scaleTo width
+  | isPortrait = zipWith (\y' h' -> rc{y=y',height=h',isPortrait = not isPortrait,depth = depth + 1}) ((scanl (+) y) $ scaleTo height) $ scaleTo height
+  | otherwise  = zipWith (\x' w' -> rc{x=x',width=w' ,isPortrait = not isPortrait,depth = depth + 1}) ((scanl (+) x) $ scaleTo width) $ scaleTo width
   -- | scaleTo l ; vsを拡大して和がlになるようにする
   where scaleTo l = map (\h -> floor $ (fromIntegral h) / (fromIntegral $ sum vs)) $ map (*l) vs
 
@@ -106,7 +119,7 @@ main = do
   tree <- getDirTree "/home/furuta/src/haskell/TreeMapDirectoryViewer/"
   print tree
   --let tree = Branch "a" $ [Leaf "b" 1,Leaf "c" 2,Leaf "d" 3,Leaf "e" 4] :: Tree FilePath Int
-  let inner_svg = getTreeMapCell (RectPH 0 0 1000 1000 False) tree
+  let inner_svg = getTreeMapCell (RectPH 0 0 1000 1000 False 0) tree
   let svg = elementS "svg" [("width","1000"),("height","1000")] inner_svg
   let elem = elementS "html" [("lang","ja")] [svg]
   B.writeFile "output.html" $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
