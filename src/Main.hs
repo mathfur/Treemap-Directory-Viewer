@@ -12,6 +12,7 @@ import Control.Applicative
 import Data.List
 import Text.Regex
 import Data.Char
+import Test.QuickCheck
 
 import             Blaze.ByteString.Builder
 import             Data.ByteString.Char8 (ByteString)
@@ -27,12 +28,40 @@ import Control.Arrow
 import IO
 import Maybe (fromMaybe)
 
--- TODO: ラベルを/以降のみにする on debugging
--- TODO: ラベル大きさを深さと連動させる on debugging
--- TODO: portrailラベルは縦に on debugging
+-- TOOO: refactoring
+-- TODO: "を消す
+-- TODO: .gitは表示しない
+-- TODO: processing.jsに変換する
+-- TODO: テスト書く
+-- TODO: stroke width depend on depth.
 -- TODO: ラベルのアルファ度を深さと連動させる
 -- TODO: ノード以外のセルの背景色はなしにする
 
+---------------------------------------------------------------------------
+--getDirTree :: FilePath -> IO (Tree FilePath Int)
+--getFileSize :: String -> IO (Maybe Integer)
+--getLineSize :: FilePath -> IO Int
+--adjustedText :: Text -> RectPH -> X.Node
+--elementS :: String -> [(String,String)] -> [X.Node] -> X.Node
+--getAtomicCell :: Label -> RectPH -> [X.Node]
+--getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [X.Node]
+--getTreeMapCell rect (Leaf a b) = getAtomicCell ((show a)::String) rect
+--rectAttrs :: RectPH -> [(String,String)]
+
+prop_divideBy2 rect xs = length rect' == length xs
+  where rect' = rect `divideBy` xs
+
+-- rect divideBy one rect.
+prop_divideBy1 rect i = and [ x rect' == x rect,
+    y rect' == y rect,
+    isPortrait rect' == (not $ isPortrait rect),
+    depth rect' == depth rect + 1
+  ]
+  where rect' = head $ rect `divideBy` [i]
+
+
+-- xs =~ (rect `divideBy` xs)
+ 
 ---------------------------------------------------------------------------
 -- | ファイルpathのライン数を得る
 getLineSize :: FilePath -> IO Int
@@ -60,16 +89,6 @@ getDirTree topdir = do
       else (getFileSize path)>>=(\n -> return $ Leaf path $ fromIntegral $ fromMaybe 0 n) -- :: IO (Tree FilePath Int)
   return $ Branch topdir resultTree -- :: IO (Tree FilePath Int)
   
--- あとこれがいる
---render :: Point -> Point -> Int -> BinaryTree a -> Html
---render leftTop rightBottom depth ( BinaryTree t1 t2 ) = do
---    render (depth -1 ) t1 :: 
---    render (depth -1 ) t2
---    render me
---  where
---    v1 = volume t1
---    v2 = volume t2
-
 ----------------------------------------------------------------------------
 -- | X.Elementのラッパー use for String
 -- [helper function]
@@ -91,15 +110,29 @@ getAtomicCell label rect = [elementS "rect" (rectAttrs rect) [],adjustedText (la
 adjustedText :: Text -> RectPH -> X.Node
 adjustedText label RectPH{..}
   | T.length label == 0 = elementS "text" [] [X.TextNode "<>"]
-  | isPortrait = elementS "text" [("style","fill-opacity:0.3;fill:#880000;"),("x",show $ x+(width `quot` 2)),("y",show y),("writing-mode","tb"),("textlength",show height),("font-size",show $ min height (width `quot` (T.length label)))] $ [X.TextNode label]
-  | otherwise  = elementS "text" [("style","fill-opacity:0.3;fill:#880000;"),("x",show x),("y",show $ y+(height `quot` 2)),("textlength",show width),("font-size",show $ min height (width `quot` (T.length label)))] $ [X.TextNode label]
+  | isPortrait = elementS "text" [
+      ("style","fill-opacity:0.3;fill:#880000;"),
+      ("x",show $ x+(width `quot` 2)),
+      ("y",show y),
+      ("writing-mode","tb"),
+      ("textlength",show height),
+      ("font-size",show $ min height (width `quot` (T.length label)))
+    ] $ [X.TextNode label]
+  | otherwise  = elementS "text" [
+      ("style","fill-opacity:0.3;fill:#880000;"),
+      ("x",show x),
+      ("y",show $ y+(height `quot` 2)),
+      ("textlength",show width),
+      ("font-size",show $ min height (width `quot` (T.length label)))
+    ] $ [X.TextNode label]
 
 ----------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
 getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [X.Node]
 getTreeMapCell rect (Leaf a b) = getAtomicCell ((show a)::String) rect
 getTreeMapCell rect (all_t@(Branch a ts)) = 
-  (getAtomicCell (show a::String) rect)++( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
+  (getAtomicCell (show a::String) rect) ++
+  ( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
 -- | rectPH is divide By vs ratio.
@@ -108,11 +141,23 @@ getTreeMapCell rect (all_t@(Branch a ts)) =
 -- third one is three-second size then second one.
 divideBy :: RectPH -> [Int] -> [RectPH]
 divideBy (rc@RectPH{..}) vs
-  | isPortrait = zipWith (\y' h' -> rc{y=y',height=h',isPortrait = not isPortrait,depth = depth + 1}) ((scanl (+) y) $ scaleTo height) $ scaleTo height
-  | otherwise  = zipWith (\x' w' -> rc{x=x',width=w' ,isPortrait = not isPortrait,depth = depth + 1}) ((scanl (+) x) $ scaleTo width) $ scaleTo width
+  | isPortrait = zipWith (\y' h' -> rc{
+          y=y',
+          height=h',
+          isPortrait = False,
+          depth = depth + 1
+        }) ys $ scaleTo height
+  | otherwise  = zipWith (\x' w' -> rc{
+          x=x',
+          width=w',
+          isPortrait = True,
+          depth = depth + 1
+        }) xs $ scaleTo width
   -- | scaleTo l ; vsを拡大して和がlになるようにする
-  where scaleTo l = map (\h -> floor $ (fromIntegral h) / (fromIntegral $ sum vs)) $ map (*l) vs
-
+  where 
+    scaleTo l = map (\h -> floor $ (fromIntegral h) / (fromIntegral $ sum vs)) $ map (*l) vs
+    xs = ((scanl (+) x) $ scaleTo width)
+    ys = ((scanl (+) y) $ scaleTo height)
 
 ----------------------------------------------------------------------------
 main = do

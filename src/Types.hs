@@ -1,5 +1,8 @@
 module Types where
 
+import Test.QuickCheck
+import Control.Applicative
+
 data Tree a b = Leaf a b | Branch a [Tree a b] deriving (Eq,Show)
 
 class HaveVolume a where
@@ -27,4 +30,13 @@ data RectPH = RectPH {
   height :: Int,
   isPortrait :: Bool,
   depth :: Int
-}
+} deriving (Eq,Show)
+
+instance Arbitrary RectPH where
+  arbitrary = RectPH <$> 
+      (arbitrary :: Gen Int) <*>
+      (arbitrary :: Gen Int) <*>
+      (arbitrary :: Gen Int) <*>
+      (arbitrary :: Gen Int) <*>
+      (arbitrary :: Gen Bool) <*>
+      (arbitrary :: Gen Int)
