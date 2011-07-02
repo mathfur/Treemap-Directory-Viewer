@@ -32,6 +32,7 @@ data RectPH = RectPH {
   depth :: Int
 } deriving (Eq,Show)
 
+----------------------------------------------------------------------
 instance Arbitrary RectPH where
   arbitrary = RectPH <$> 
       (arbitrary :: Gen Int) <*>
@@ -40,3 +41,9 @@ instance Arbitrary RectPH where
       (arbitrary :: Gen Int) <*>
       (arbitrary :: Gen Bool) <*>
       (arbitrary :: Gen Int)
+
+instance (Arbitrary a,Arbitrary b) => Arbitrary (Tree a b) where
+  arbitrary = oneof [
+      Leaf <$> arbitrary <*> arbitrary,
+      Branch <$> arbitrary <*> listOf arbitrary
+    ]
