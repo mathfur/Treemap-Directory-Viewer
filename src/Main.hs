@@ -41,23 +41,18 @@ import Maybe (fromMaybe)
 --getDirTree :: FilePath -> IO (Tree FilePath Int)
 --getFileSize :: String -> IO (Maybe Integer)
 --getLineSize :: FilePath -> IO Int
---adjustedText :: Text -> RectPH -> X.Node
 --elementS :: String -> [(String,String)] -> [X.Node] -> X.Node
---getAtomicCell :: Label -> RectPH -> [X.Node]
---getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [X.Node]
---getTreeMapCell rect (Leaf a b) = getAtomicCell ((show a)::String) rect
---rectAttrs :: RectPH -> [(String,String)]
 
 prop_divideBy2 rect xs = length rect' == length xs
   where rect' = rect `divideBy` xs
 
 -- rect divideBy one rect.
-prop_divideBy1 rect i = and [ x rect' == x rect,
-    y rect' == y rect,
-    isPortrait rect' == (not $ isPortrait rect),
-    depth rect' == depth rect + 1
+prop_divideBy1 rect0 i = and [ (centerX $ rect $ rect1) == (centerX $ rect $ rect0),
+    (centerY $ rect $ rect1) == (centerY $ rect $ rect0),
+    (isPortrait $ rect1) == (not $ isPortrait $ rect0),
+    (depth $ rect1) == (depth $ rect0) + 1
   ]
-  where rect' = head $ rect `divideBy` [i]
+  where rect1 = head $ rect0 `divideBy` [i]
 
 
 -- xs =~ (rect `divideBy` xs)
@@ -95,40 +90,22 @@ getDirTree topdir = do
 elementS :: String -> [(String,String)] -> [X.Node] -> X.Node
 elementS tag attrs children = X.Element (T.pack tag) (map (T.pack *** T.pack) attrs) children
 
-----------------------------------------------------------------------------
--- | RectPH 0 0 100 100 |-> [(("x","0"),("y","0"),("width","100"),("height","100"))]
-rectAttrs :: RectPH -> [(String,String)]
-rectAttrs RectPH{..} = [("style","fill-opacity:0.3;fill:#880000;"),("x",show x),("y",show y),("width",show (width-1)),("height",show (height-1))]
-
 ---------------------------------------------------------------------------
 -- | Minimum Cell.
-getAtomicCell :: Label -> RectPH -> [X.Node]
-getAtomicCell label rect = [elementS "rect" (rectAttrs rect) [],adjustedText (last $ T.split (=='/') $ T.pack label) rect] 
-
-----------------------------------------------------------------------------
--- |
-adjustedText :: Text -> RectPH -> X.Node
-adjustedText label RectPH{..}
-  | T.length label == 0 = elementS "text" [] [X.TextNode "<>"]
-  | isPortrait = elementS "text" [
-      ("style","fill-opacity:0.3;fill:#880000;"),
-      ("x",show $ x+(width `quot` 2)),
-      ("y",show y),
-      ("writing-mode","tb"),
-      ("textlength",show height),
-      ("font-size",show $ min height (width `quot` (T.length label)))
-    ] $ [X.TextNode label]
-  | otherwise  = elementS "text" [
-      ("style","fill-opacity:0.3;fill:#880000;"),
-      ("x",show x),
-      ("y",show $ y+(height `quot` 2)),
-      ("textlength",show width),
-      ("font-size",show $ min height (width `quot` (T.length label)))
-    ] $ [X.TextNode label]
-
+getAtomicCell :: Label -> RectPH -> [PreNode]
+getAtomicCell label rect_ph = [ PreRectNode (rect rect_ph) rect_attr, PreTextNode (rect rect_ph) text_attr ]
+  where 
+    rect_attr = RectAttr $ Color{ a=100,r=0x88,g=0,b=0 }
+    text_attr = TextAttr {
+      fontColor = Color{a=100,r=0,g=0x88,b=0},
+      text = label,
+      fontSize = Nothing,
+      isVertical = isPortrait rect_ph
+    }
+      
 ----------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
-getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [X.Node]
+getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [PreNode]
 getTreeMapCell rect (Leaf a b) = getAtomicCell ((show a)::String) rect
 getTreeMapCell rect (all_t@(Branch a ts)) = 
   (getAtomicCell (show a::String) rect) ++
@@ -139,32 +116,83 @@ getTreeMapCell rect (all_t@(Branch a ts)) =
 -- if vs = [1,2,3], then rect devideBy vs is three rect.
 -- second one is twice size then frist one.
 -- third one is three-second size then second one.
-divideBy :: RectPH -> [Int] -> [RectPH]
+divideBy :: RectPH -> [Float] -> [RectPH]
 divideBy (rc@RectPH{..}) vs
   | isPortrait = zipWith (\y' h' -> rc{
-          y=y',
-          height=h',
+          rect=Rect{centerX=centerX rect,centerY=y',width=width rect,height=h'},
           isPortrait = False,
           depth = depth + 1
-        }) ys $ scaleTo height
+        }) (ys::[Float]) $ (scaleTo (height rect) vs)
   | otherwise  = zipWith (\x' w' -> rc{
-          x=x',
-          width=w',
+          rect = Rect{centerX=x',centerY=centerY rect,width=w',height=height rect},
           isPortrait = True,
           depth = depth + 1
-        }) xs $ scaleTo width
+        }) (xs::[Float]) $ (scaleTo (width rect) vs)
   -- | scaleTo l ; vsを拡大して和がlになるようにする
-  where 
-    scaleTo l = map (\h -> floor $ (fromIntegral h) / (fromIntegral $ sum vs)) $ map (*l) vs
-    xs = ((scanl (+) x) $ scaleTo width)
-    ys = ((scanl (+) y) $ scaleTo height)
+  where
+    xs = scanl (+) (centerX rect) $ scaleTo (width rect) vs
+    ys = scanl (+) (centerY rect) $ scaleTo (height rect) vs
+
+scaleTo :: Float -> [Float] -> [Float]
+scaleTo l as = map (/ sum as) $ map (*l) as
+
+----------------------------------------------------------------------------
+-- | generate X.Node from PreRectNode or PreTextNode.
+pre2XNode :: PreNode -> X.Node
+pre2XNode pre_node = case pre_node of
+  PreRectNode Rect{..} rect_attr ->
+    elementS "rect" attrs []
+      where 
+        attrs = [
+          ("style","fill-opacity:" ++ (show $ floor $ (fromIntegral 255)/(fromIntegral $ a $ color $ rect_attr )) ++ ";fill:"        ++ (colorCode $ color $ rect_attr)  ++ ";"),
+          ("x",show centerX),
+          ("y",show centerY),
+          ("width",show (width-1)),
+          ("height",show (height-1)),
+          ("stroke-width","5"),
+          ("stroke","white"),
+          ("fill","none")
+          ]
+  PreTextNode Rect{..} text_attr -> func
+    where
+      func
+        | length (text text_attr) == 0 = elementS "text" [] [X.TextNode "<>"]
+        | (isVertical text_attr) = elementS "text" [
+            ("style","fill-opacity:" ++ (show $ a $ fontColor $ text_attr ) ++ 
+                     ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("x",show $ floor $ centerX+(width / (2::Float))),
+            ("y",show centerY),
+            ("writing-mode","tb"),
+            ("textlength",show height),
+            ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
+          ] $ [X.TextNode $ T.pack $ text text_attr]
+        | otherwise  = elementS "text" [
+            ("style","fill-opacity:" ++ (show $ a $ fontColor $ text_attr ) ++ 
+                     ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("x",show centerX),
+            ("y",show $ floor $ centerY+(height / (2::Float))),
+            ("textlength",show width),
+            ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
+          ] $ [X.TextNode $ T.pack $ text text_attr]
+
+modifyText :: PreNode -> PreNode
+modifyText pre_node = case pre_node of
+  PreTextNode rect (text_attr@TextAttr{..}) ->
+    PreTextNode rect text_attr{ text = T.unpack $ last $ T.split (=='/') $ T.pack text }
+  PreRectNode rect attr -> PreRectNode rect attr
 
 ----------------------------------------------------------------------------
 main = do
   tree <- getDirTree "/home/furuta/src/haskell/TreeMapDirectoryViewer/"
   print tree
+  print "---"
   --let tree = Branch "a" $ [Leaf "b" 1,Leaf "c" 2,Leaf "d" 3,Leaf "e" 4] :: Tree FilePath Int
-  let inner_svg = getTreeMapCell (RectPH 0 0 1000 1000 False 0) tree
+  let pre_nodes = getTreeMapCell (RectPH (Rect 0 0 1000 1000) False 0) tree :: [PreNode]
+  print pre_nodes
+  print "---"
+  let inner_svg = map (pre2XNode.modifyText) pre_nodes :: [X.Node]
+  print inner_svg
+  print "---"
   let svg = elementS "svg" [("width","1000"),("height","1000")] inner_svg
   let elem = elementS "html" [("lang","ja")] [svg]
   B.writeFile "output.html" $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
