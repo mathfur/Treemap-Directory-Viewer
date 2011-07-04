@@ -28,14 +28,6 @@ import Control.Arrow
 import IO
 import Maybe (fromMaybe)
 
--- TOOO: refactoring
--- TODO: "を消す
--- TODO: .gitは表示しない
--- TODO: processing.jsに変換する
--- TODO: テスト書く
--- TODO: stroke width depend on depth.
--- TODO: ラベルのアルファ度を深さと連動させる
--- TODO: ノード以外のセルの背景色はなしにする
 
 ---------------------------------------------------------------------------
 --getDirTree :: FilePath -> IO (Tree FilePath Int)
@@ -95,9 +87,9 @@ elementS tag attrs children = X.Element (T.pack tag) (map (T.pack *** T.pack) at
 getAtomicCell :: Label -> RectPH -> [PreNode]
 getAtomicCell label rect_ph = [ PreRectNode (rect rect_ph) rect_attr, PreTextNode (rect rect_ph) text_attr ]
   where 
-    rect_attr = RectAttr $ Color{ a=100,r=0x88,g=0,b=0 }
+    rect_attr = RectAttr $ Color{ a=100,r=0,g=255,b=0 }
     text_attr = TextAttr {
-      fontColor = Color{a=100,r=0,g=0x88,b=0},
+      fontColor = Color{a=30,r=255,g=0,b=0},
       text = label,
       fontSize = Nothing,
       isVertical = isPortrait rect_ph
@@ -144,21 +136,21 @@ pre2XNode pre_node = case pre_node of
     elementS "rect" attrs []
       where 
         attrs = [
-          ("style","fill-opacity:" ++ (show $ floor $ (fromIntegral 255)/(fromIntegral $ a $ color $ rect_attr )) ++ ";fill:"        ++ (colorCode $ color $ rect_attr)  ++ ";"),
+          ("style","fill-opacity:" ++ (show $ floatAlpha $ color $ rect_attr )),
           ("x",show centerX),
           ("y",show centerY),
-          ("width",show (width-1)),
-          ("height",show (height-1)),
-          ("stroke-width","5"),
+          ("width",show width),
+          ("height",show height),
+          ("stroke-width","2"),
           ("stroke","white"),
-          ("fill","none")
+          ("fill",colorCode $ color $ rect_attr) 
           ]
   PreTextNode Rect{..} text_attr -> func
     where
       func
         | length (text text_attr) == 0 = elementS "text" [] [X.TextNode "<>"]
         | (isVertical text_attr) = elementS "text" [
-            ("style","fill-opacity:" ++ (show $ a $ fontColor $ text_attr ) ++ 
+            ("style","fill-opacity:" ++ (show $ floatAlpha $ fontColor $ text_attr ) ++ 
                      ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
             ("x",show $ floor $ centerX+(width / (2::Float))),
             ("y",show centerY),
@@ -167,7 +159,7 @@ pre2XNode pre_node = case pre_node of
             ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
           ] $ [X.TextNode $ T.pack $ text text_attr]
         | otherwise  = elementS "text" [
-            ("style","fill-opacity:" ++ (show $ a $ fontColor $ text_attr ) ++ 
+            ("style","fill-opacity:" ++ (show $ floatAlpha $ fontColor $ text_attr ) ++ 
                      ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
             ("x",show centerX),
             ("y",show $ floor $ centerY+(height / (2::Float))),
