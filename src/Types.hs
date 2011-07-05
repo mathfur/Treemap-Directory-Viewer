@@ -40,7 +40,7 @@ data RectPH = RectPH {
 data Color = Color { r :: Int, g :: Int, b :: Int, a :: Int } deriving (Eq,Show)
 
 colorCode :: Color -> String
-colorCode Color{..} = "#" ++ toBeTwoChar r ++ toBeTwoChar g ++ toBeTwoChar a
+colorCode Color{..} = "#" ++ toBeTwoChar r ++ toBeTwoChar g ++ toBeTwoChar b
   where toBeTwoChar n = (if n < 16 then "0" else "") ++ showHex n ""
 
 floatAlpha :: Color -> Float

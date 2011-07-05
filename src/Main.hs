@@ -10,7 +10,7 @@ import System.Exit
 import System.FilePath
 import Control.Applicative
 import Data.List
-import Text.Regex
+import Text.Regex.Posix
 import Data.Char
 import Test.QuickCheck
 
@@ -26,7 +26,8 @@ import Data.String
 import Control.Arrow
 
 import IO
-import Maybe (fromMaybe)
+import Maybe
+import Numeric
 
 
 ---------------------------------------------------------------------------
@@ -67,7 +68,7 @@ getFileSize path = catch
 getDirTree :: FilePath -> IO (Tree FilePath Int)
 getDirTree topdir = do
   names <- getDirectoryContents topdir
-  let properNames = filter (not .("swp" `isSuffixOf`)) $ filter (`notElem` [".", ".."]) names
+  let properNames = filter (`notElem` [".", ".."]) names
   resultTree <- forM properNames $ \name -> do -- paths :: Tree FilePath Int
     let path = topdir </> name
     isDirectory <- doesDirectoryExist path
@@ -75,7 +76,7 @@ getDirTree topdir = do
       then getDirTree path -- :: IO (Tree FilePath Int)
       else (getFileSize path)>>=(\n -> return $ Leaf path $ fromIntegral $ fromMaybe 0 n) -- :: IO (Tree FilePath Int)
   return $ Branch topdir resultTree -- :: IO (Tree FilePath Int)
-  
+
 ----------------------------------------------------------------------------
 -- | X.Elementのラッパー use for String
 -- [helper function]
@@ -87,20 +88,24 @@ elementS tag attrs children = X.Element (T.pack tag) (map (T.pack *** T.pack) at
 getAtomicCell :: Label -> RectPH -> [PreNode]
 getAtomicCell label rect_ph = [ PreRectNode (rect rect_ph) rect_attr, PreTextNode (rect rect_ph) text_attr ]
   where 
-    rect_attr = RectAttr $ Color{ a=100,r=0,g=255,b=0 }
+    rect_attr = RectAttr $ Color{ a=255,r=0xa5,g=0xef,b=0xcc }
     text_attr = TextAttr {
-      fontColor = Color{a=30,r=255,g=0,b=0},
+      fontColor = Color{a= depth2Alpha $ depth rect_ph ,r=0x6b,g=0x9b,b=0xcc},
       text = label,
       fontSize = Nothing,
       isVertical = isPortrait rect_ph
     }
+
+depth2Alpha :: Int -> Int
+--depth2Alpha x = floor $ (255::Float) / (log (fromIntegral $ 1 + x) + 1.0)
+depth2Alpha x = if (x < 0 || x > 255) then 0 else floor $ (255::Float) / (fromIntegral x)
       
-----------------------------------------------------------------------------
+---------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
-getTreeMapCell :: (HaveVolume b,Show a) => RectPH -> Tree a b -> [PreNode]
-getTreeMapCell rect (Leaf a b) = getAtomicCell ((show a)::String) rect
+getTreeMapCell :: HaveVolume b => RectPH -> Tree String b -> [PreNode]
+getTreeMapCell rect (Leaf a b) = getAtomicCell (a++"("++ show (floor (volume b / 1000.0)) ++")") rect
 getTreeMapCell rect (all_t@(Branch a ts)) = 
-  (getAtomicCell (show a::String) rect) ++
+  (getAtomicCell (a++"("++ show(floor $ volume all_t / 1000.0) ++")") rect) ++
   ( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
@@ -136,12 +141,12 @@ pre2XNode pre_node = case pre_node of
     elementS "rect" attrs []
       where 
         attrs = [
-          ("style","fill-opacity:" ++ (show $ floatAlpha $ color $ rect_attr )),
+          --("style","fill-opacity:" ++ (show $ floatAlpha $ color $ rect_attr )),
           ("x",show centerX),
           ("y",show centerY),
           ("width",show width),
           ("height",show height),
-          ("stroke-width","2"),
+          ("stroke-width","1"),
           ("stroke","white"),
           ("fill",colorCode $ color $ rect_attr) 
           ]
@@ -150,20 +155,20 @@ pre2XNode pre_node = case pre_node of
       func
         | length (text text_attr) == 0 = elementS "text" [] [X.TextNode "<>"]
         | (isVertical text_attr) = elementS "text" [
-            ("style","fill-opacity:" ++ (show $ floatAlpha $ fontColor $ text_attr ) ++ 
-                     ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("style","fill:" ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("opacity",showFFloat (Just 3) (floatAlpha $ fontColor $ text_attr ) ""),
             ("x",show $ floor $ centerX+(width / (2::Float))),
             ("y",show centerY),
             ("writing-mode","tb"),
-            ("textlength",show height),
-            ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
+            --("textlength",show height),
+            ("font-size",show $ floor $ min width (height / (fromIntegral $ length $ text text_attr)))
           ] $ [X.TextNode $ T.pack $ text text_attr]
         | otherwise  = elementS "text" [
-            ("style","fill-opacity:" ++ (show $ floatAlpha $ fontColor $ text_attr ) ++ 
-                     ";fill:"        ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("style","fill:" ++ (colorCode $ fontColor $ text_attr)  ++ ";"),
+            ("opacity",showFFloat (Just 3) (floatAlpha $ fontColor $ text_attr ) ""),
             ("x",show centerX),
             ("y",show $ floor $ centerY+(height / (2::Float))),
-            ("textlength",show width),
+            --("textlength",show width),
             ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
           ] $ [X.TextNode $ T.pack $ text text_attr]
 
@@ -173,19 +178,31 @@ modifyText pre_node = case pre_node of
     PreTextNode rect text_attr{ text = T.unpack $ last $ T.split (=='/') $ T.pack text }
   PreRectNode rect attr -> PreRectNode rect attr
 
+withVisibleExtension :: [String] -> FilePath -> Bool
+withVisibleExtension exts path = (or $ map (`isSuffixOf` path) exts)
+
+excludeHiddenEntry :: (FilePath -> Bool) -> Tree FilePath Int -> Maybe ( Tree FilePath Int )
+excludeHiddenEntry p (leaf@(Leaf path n)) = if p path then Just leaf else Nothing
+excludeHiddenEntry p (Branch path ts)
+  | p path = Just $ Branch path $ mapMaybe (excludeHiddenEntry p) ts
+  | otherwise = Nothing
+
+includeEnableExtensions :: [String] -> Tree FilePath Int -> Maybe ( Tree FilePath Int )
+includeEnableExtensions exts (leaf@(Leaf path n)) = if (withVisibleExtension exts path) then Just leaf else Nothing
+includeEnableExtensions exts (Branch path ts)
+  | ts == [] = Nothing
+  | otherwise = Just $ Branch path $ mapMaybe (includeEnableExtensions exts) ts
+
 ----------------------------------------------------------------------------
 main = do
-  tree <- getDirTree "/home/furuta/src/haskell/TreeMapDirectoryViewer/"
-  print tree
-  print "---"
+  tree <- getDirTree "/home/furuta/src/haskell/berp/src/"
+  let tree2 = fromJust $ excludeHiddenEntry (not .("/." `isInfixOf`)) tree
+  let tree3 = fromJust $ includeEnableExtensions ["hs","lhs"] tree2
   --let tree = Branch "a" $ [Leaf "b" 1,Leaf "c" 2,Leaf "d" 3,Leaf "e" 4] :: Tree FilePath Int
-  let pre_nodes = getTreeMapCell (RectPH (Rect 0 0 1000 1000) False 0) tree :: [PreNode]
-  print pre_nodes
-  print "---"
-  let inner_svg = map (pre2XNode.modifyText) pre_nodes :: [X.Node]
+  let pre_nodes = getTreeMapCell (RectPH (Rect 0 0 2000 2000) False 0) tree3  :: [PreNode]
+  let inner_svg = sortBy (\e f -> if X.tagName e == Just "rect" then LT else GT) $ map (pre2XNode.modifyText) pre_nodes :: [X.Node]
   print inner_svg
-  print "---"
-  let svg = elementS "svg" [("width","1000"),("height","1000")] inner_svg
+  let svg = elementS "svg" [("width","2000"),("height","2000")] inner_svg
   let elem = elementS "html" [("lang","ja")] [svg]
   B.writeFile "output.html" $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
   
