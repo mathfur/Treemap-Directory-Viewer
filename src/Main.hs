@@ -31,11 +31,6 @@ import Numeric
 
 
 ---------------------------------------------------------------------------
---getDirTree :: FilePath -> IO (Tree FilePath Int)
---getFileSize :: String -> IO (Maybe Integer)
---getLineSize :: FilePath -> IO Int
---elementS :: String -> [(String,String)] -> [X.Node] -> X.Node
-
 prop_divideBy2 rect xs = length rect' == length xs
   where rect' = rect `divideBy` xs
 
@@ -47,9 +42,6 @@ prop_divideBy1 rect0 i = and [ (centerX $ rect $ rect1) == (centerX $ rect $ rec
   ]
   where rect1 = head $ rect0 `divideBy` [i]
 
-
--- xs =~ (rect `divideBy` xs)
- 
 ---------------------------------------------------------------------------
 -- | ファイルpathのライン数を得る
 getLineSize :: FilePath -> IO Int
@@ -102,11 +94,11 @@ depth2Alpha x = if (x < 0 || x > 255) then 0 else floor $ (255::Float) / (fromIn
       
 ---------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
-getTreeMapCell :: HaveVolume b => RectPH -> Tree String b -> [PreNode]
-getTreeMapCell rect (Leaf a b) = getAtomicCell (a++"("++ show (floor (volume b / 1000.0)) ++")") rect
-getTreeMapCell rect (all_t@(Branch a ts)) = 
+getPreNodesFromRectAndTree :: HaveVolume b => RectPH -> Tree String b -> [PreNode]
+getPreNodesFromRectAndTree rect (Leaf a b) = getAtomicCell (a++"("++ show (floor (volume b / 1000.0)) ++")") rect
+getPreNodesFromRectAndTree rect (all_t@(Branch a ts)) = 
   (getAtomicCell (a++"("++ show(floor $ volume all_t / 1000.0) ++")") rect) ++
-  ( concat $ zipWith getTreeMapCell (rect `divideBy` (map volume ts)) ts )
+  ( concat $ zipWith getPreNodesFromRectAndTree (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
 -- | rectPH is divide By vs ratio.
@@ -193,16 +185,19 @@ includeEnableExtensions exts (Branch path ts)
   | ts == [] = Nothing
   | otherwise = Just $ Branch path $ mapMaybe (includeEnableExtensions exts) ts
 
+writeIntoHtml :: FilePath -> Rect -> [X.Node] -> IO ()
+writeIntoHtml path Rect{..} inner = do
+  let svg = elementS "svg" [("witdh",witdh),("height",height)] inner
+  let elem = elementS "html" [("lang","ja")] [svg]
+  B.writeFile path $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
+
 ----------------------------------------------------------------------------
 main = do
-  tree <- getDirTree "/home/furuta/src/haskell/berp/src/"
-  let tree2 = fromJust $ excludeHiddenEntry (not .("/." `isInfixOf`)) tree
-  let tree3 = fromJust $ includeEnableExtensions ["hs","lhs"] tree2
-  --let tree = Branch "a" $ [Leaf "b" 1,Leaf "c" 2,Leaf "d" 3,Leaf "e" 4] :: Tree FilePath Int
-  let pre_nodes = getTreeMapCell (RectPH (Rect 0 0 2000 2000) False 0) tree3  :: [PreNode]
+  let rectToDraw = Rect 0 0 2000 2000
+  tree_only_hs <- ((getDirTree "/home/furuta/src/haskell/berp/src/") >>= 
+  (fromJust $ excludeHiddenEntry (not .("/." `isInfixOf`))) >>=
+  (fromJust $ includeEnableExtensions ["hs","lhs"] tree_without_hidden)
+  let pre_nodes = getPreNodesFromRectAndTree (RectPH rectToDraw False 0) tree_only_hs  :: [PreNode]
   let inner_svg = sortBy (\e f -> if X.tagName e == Just "rect" then LT else GT) $ map (pre2XNode.modifyText) pre_nodes :: [X.Node]
-  print inner_svg
-  let svg = elementS "svg" [("width","2000"),("height","2000")] inner_svg
-  let elem = elementS "html" [("lang","ja")] [svg]
-  B.writeFile "output.html" $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
+  writeIntoHtml "output.html" rectToDraw inner_svg
   
