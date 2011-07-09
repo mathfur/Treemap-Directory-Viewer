@@ -187,16 +187,14 @@ includeEnableExtensions exts (Branch path ts)
 
 writeIntoHtml :: FilePath -> Rect -> [X.Node] -> IO ()
 writeIntoHtml path Rect{..} inner = do
-  let svg = elementS "svg" [("witdh",witdh),("height",height)] inner
+  let svg = elementS "svg" [("width",show width),("height",show height)] inner
   let elem = elementS "html" [("lang","ja")] [svg]
   B.writeFile path $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
 
 ----------------------------------------------------------------------------
 main = do
   let rectToDraw = Rect 0 0 2000 2000
-  tree_only_hs <- ((getDirTree "/home/furuta/src/haskell/berp/src/") >>= 
-  (fromJust $ excludeHiddenEntry (not .("/." `isInfixOf`))) >>=
-  (fromJust $ includeEnableExtensions ["hs","lhs"] tree_without_hidden)
+  tree_only_hs <- ((getDirTree "/home/furuta/src/haskell/language-python/src/Language/Python/") >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
   let pre_nodes = getPreNodesFromRectAndTree (RectPH rectToDraw False 0) tree_only_hs  :: [PreNode]
   let inner_svg = sortBy (\e f -> if X.tagName e == Just "rect" then LT else GT) $ map (pre2XNode.modifyText) pre_nodes :: [X.Node]
   writeIntoHtml "output.html" rectToDraw inner_svg
