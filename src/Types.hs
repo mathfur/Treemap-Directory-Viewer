@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Types where
 
@@ -7,6 +8,7 @@ import Test.QuickCheck
 import Control.Applicative
 import Control.Arrow
 import Numeric
+import Data.Data
 
 data Tree a b = Leaf a b | Branch a [Tree a b] deriving (Eq,Show)
 
@@ -102,3 +104,10 @@ instance (Arbitrary a,Arbitrary b) => Arbitrary (Tree a b) where
       Leaf <$> arbitrary <*> arbitrary,
       Branch <$> arbitrary <*> listOf arbitrary
     ]
+
+
+data Option  = Option {
+  script :: String,
+  inputFiles :: [String]
+} deriving (Data,Show,Typeable)
+

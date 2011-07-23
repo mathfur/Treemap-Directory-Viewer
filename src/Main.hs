@@ -13,6 +13,7 @@ import Data.List
 import Text.Regex.Posix
 import Data.Char
 import Test.QuickCheck
+import System.Console.CmdArgs
 
 import             Blaze.ByteString.Builder
 import             Data.ByteString.Char8 (ByteString)
@@ -29,6 +30,11 @@ import IO
 import Maybe
 import Numeric
 
+option =  Option {
+  script = def &= argPos 0 &= typ "SCRIPT",
+  inputFiles = def &= args &= typ "FILE"
+} &= program "(program name)"
+  &= summary "(description and version)"
 
 ---------------------------------------------------------------------------
 prop_divideBy2 rect xs = length rect' == length xs
@@ -193,6 +199,7 @@ writeIntoHtml path Rect{..} inner = do
 
 ----------------------------------------------------------------------------
 main = do
+  opts <- cmdArgs option
   let rectToDraw = Rect 0 0 2000 2000
   tree_only_hs <- ((getDirTree "/home/furuta/src/haskell/language-python/src/Language/Python/") >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
   let pre_nodes = getPreNodesFromRectAndTree (RectPH rectToDraw False 0) tree_only_hs  :: [PreNode]
