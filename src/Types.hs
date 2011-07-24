@@ -107,6 +107,7 @@ instance (Arbitrary a,Arbitrary b) => Arbitrary (Tree a b) where
 
 
 data Option  = Option {
-  output :: Maybe String
+  output :: Maybe String,
+  input :: Maybe String
 } deriving (Data,Show,Typeable)
 

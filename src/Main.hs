@@ -31,9 +31,10 @@ import Maybe
 import Numeric
 
 option =  Option {
-  output = def &= typ "SCRIPT"
-} &= program "(program name)"
-  &= summary "(description and version)"
+  output = def &= typ "FILE",
+  input =  def &= typ "DIR"
+} &= program "treemap-directory-viewer"
+  &= summary "Treemap Directory Viewer. v0.1 (C) Mathfuru 2011"
 
 ---------------------------------------------------------------------------
 prop_divideBy2 rect xs = length rect' == length xs
@@ -201,8 +202,8 @@ main = do
   opts <- cmdArgs option
   let rectToDraw = Rect 0 0 2000 2000
   let outputFile = Types.output opts
-  path <- getCurrentDirectory
-  tree_only_hs <- ((getDirTree path) >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
+  inputDir <- fromMaybe <$> getCurrentDirectory <*> (return $ Types.input opts)
+  tree_only_hs <- ((getDirTree inputDir) >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
   let pre_nodes = getPreNodesFromRectAndTree (RectPH rectToDraw False 0) tree_only_hs  :: [PreNode]
   let inner_svg = sortBy (\e f -> if X.tagName e == Just "rect" then LT else GT) $ map (pre2XNode.modifyText) pre_nodes :: [X.Node]
   if (isJust outputFile) then B.writeFile (fromJust outputFile) $ toSvgNode  rectToDraw inner_svg
