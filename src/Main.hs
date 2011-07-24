@@ -101,9 +101,9 @@ depth2Alpha x = if (x < 0 || x > 255) then 0 else floor $ (255::Float) / (fromIn
 ---------------------------------------------------------------------------
 -- | get html for drawing tree on rect.
 getPreNodesFromRectAndTree :: HaveVolume b => RectPH -> Tree String b -> [PreNode]
-getPreNodesFromRectAndTree rect (Leaf a b) = getAtomicCell (a++"("++ show (floor (volume b / 1000.0)) ++")") rect
+getPreNodesFromRectAndTree rect (Leaf a b) = getAtomicCell (a++"("++ show (ceiling (volume b / 4000.0)) ++")") rect
 getPreNodesFromRectAndTree rect (all_t@(Branch a ts)) = 
-  (getAtomicCell (a++"("++ show(floor $ volume all_t / 1000.0) ++")") rect) ++
+  (getAtomicCell (a++"("++ show(ceiling $ volume all_t / 4000.0) ++")") rect) ++
   ( concat $ zipWith getPreNodesFromRectAndTree (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
