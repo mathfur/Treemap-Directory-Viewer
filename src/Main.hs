@@ -37,23 +37,10 @@ option =  Option {
   &= summary "Treemap Directory Viewer. v0.1 (C) Mathfuru 2011"
 
 ---------------------------------------------------------------------------
-prop_divideBy2 rect xs = length rect' == length xs
-  where rect' = rect `divideBy` xs
-
--- rect divideBy one rect.
-prop_divideBy1 rect0 i = and [ (centerX $ rect $ rect1) == (centerX $ rect $ rect0),
-    (centerY $ rect $ rect1) == (centerY $ rect $ rect0),
-    (isPortrait $ rect1) == (not $ isPortrait $ rect0),
-    (depth $ rect1) == (depth $ rect0) + 1
-  ]
-  where rect1 = head $ rect0 `divideBy` [i]
-
----------------------------------------------------------------------------
 -- | ファイルpathのライン数を得る
 getLineSize :: FilePath -> IO Int
 getLineSize path = (length . lines) <$> (readFile path)
 
--- | getFileSize
 getFileSize :: String -> IO (Maybe Integer)
 getFileSize path = catch
   (bracket
@@ -62,18 +49,17 @@ getFileSize path = catch
     (\h -> hFileSize h >>= return . Just))
   (const $ return Nothing)
 
--- | path子孫のTreeを得る
 getDirTree :: FilePath -> IO (Tree FilePath Int)
 getDirTree topdir = do
   names <- getDirectoryContents topdir
   let properNames = filter (`notElem` [".", ".."]) names
-  resultTree <- forM properNames $ \name -> do -- paths :: Tree FilePath Int
+  resultTree <- forM properNames $ \name -> do
     let path = topdir </> name
     isDirectory <- doesDirectoryExist path
     if isDirectory
-      then getDirTree path -- :: IO (Tree FilePath Int)
-      else (getFileSize path)>>=(\n -> return $ Leaf path $ fromIntegral $ fromMaybe 0 n) -- :: IO (Tree FilePath Int)
-  return $ Branch topdir resultTree -- :: IO (Tree FilePath Int)
+      then getDirTree path
+      else (getFileSize path)>>=(\n -> return $ Leaf path $ fromIntegral $ fromMaybe 0 n)
+  return $ Branch topdir resultTree
 
 ----------------------------------------------------------------------------
 -- | X.Elementのラッパー use for String
@@ -95,7 +81,6 @@ getAtomicCell label rect_ph = [ PreRectNode (rect rect_ph) rect_attr, PreTextNod
     }
 
 depth2Alpha :: Int -> Int
---depth2Alpha x = floor $ (255::Float) / (log (fromIntegral $ 1 + x) + 1.0)
 depth2Alpha x = if (x < 0 || x > 255) then 0 else floor $ (255::Float) / (fromIntegral x)
       
 ---------------------------------------------------------------------------
@@ -107,10 +92,8 @@ getPreNodesFromRectAndTree rect (all_t@(Branch a ts)) =
   ( concat $ zipWith getPreNodesFromRectAndTree (rect `divideBy` (map volume ts)) ts )
 
 ---------------------------------------------------------------------------
--- | rectPH is divide By vs ratio.
--- if vs = [1,2,3], then rect devideBy vs is three rect.
--- second one is twice size then frist one.
--- third one is three-second size then second one.
+-- | rc is divide By vs ratio.
+-- if vs = [1,2,3], then "rect `devideBy` vs" is three rect.
 divideBy :: RectPH -> [Float] -> [RectPH]
 divideBy (rc@RectPH{..}) vs
   | isPortrait = zipWith (\y' h' -> rc{
@@ -123,7 +106,6 @@ divideBy (rc@RectPH{..}) vs
           isPortrait = True,
           depth = depth + 1
         }) (xs::[Float]) $ (scaleTo (width rect) vs)
-  -- | scaleTo l ; vsを拡大して和がlになるようにする
   where
     xs = scanl (+) (centerX rect) $ scaleTo (width rect) vs
     ys = scanl (+) (centerY rect) $ scaleTo (height rect) vs
@@ -139,7 +121,6 @@ pre2XNode pre_node = case pre_node of
     elementS "rect" attrs []
       where 
         attrs = [
-          --("style","fill-opacity:" ++ (show $ floatAlpha $ color $ rect_attr )),
           ("x",show centerX),
           ("y",show centerY),
           ("width",show width),
@@ -158,7 +139,6 @@ pre2XNode pre_node = case pre_node of
             ("x",show $ floor $ centerX+(width / (2::Float))),
             ("y",show centerY),
             ("writing-mode","tb"),
-            --("textlength",show height),
             ("font-size",show $ floor $ min width (height / (fromIntegral $ length $ text text_attr)))
           ] $ [X.TextNode $ T.pack $ text text_attr]
         | otherwise  = elementS "text" [
@@ -166,7 +146,6 @@ pre2XNode pre_node = case pre_node of
             ("opacity",showFFloat (Just 3) (floatAlpha $ fontColor $ text_attr ) ""),
             ("x",show centerX),
             ("y",show $ floor $ centerY+(height / (2::Float))),
-            --("textlength",show width),
             ("font-size",show $ floor $ min height (width / (fromIntegral $ length $ text text_attr)))
           ] $ [X.TextNode $ T.pack $ text text_attr]
 
