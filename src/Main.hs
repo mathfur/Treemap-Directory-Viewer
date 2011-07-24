@@ -31,8 +31,7 @@ import Maybe
 import Numeric
 
 option =  Option {
-  script = def &= argPos 0 &= typ "SCRIPT",
-  inputFiles = def &= args &= typ "FILE"
+  output = def &= typ "SCRIPT"
 } &= program "(program name)"
   &= summary "(description and version)"
 
@@ -191,18 +190,20 @@ includeEnableExtensions exts (Branch path ts)
   | ts == [] = Nothing
   | otherwise = Just $ Branch path $ mapMaybe (includeEnableExtensions exts) ts
 
-writeIntoHtml :: FilePath -> Rect -> [X.Node] -> IO ()
-writeIntoHtml path Rect{..} inner = do
-  let svg = elementS "svg" [("width",show width),("height",show height)] inner
-  let elem = elementS "html" [("lang","ja")] [svg]
-  B.writeFile path $ toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
+toSvgNode :: Rect -> [X.Node] -> ByteString
+toSvgNode Rect{..} inner = toByteString $ X.render $ X.HtmlDocument X.UTF8 Nothing [elem]
+    where
+      elem = elementS "html" [("lang","ja")] [svg]
+      svg = elementS "svg" [("width",show width),("height",show height)] inner
 
 ----------------------------------------------------------------------------
 main = do
   opts <- cmdArgs option
   let rectToDraw = Rect 0 0 2000 2000
-  tree_only_hs <- ((getDirTree "/home/furuta/src/haskell/language-python/src/Language/Python/") >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
+  let outputFile = Types.output opts
+  path <- getCurrentDirectory
+  tree_only_hs <- ((getDirTree path) >>= (return.fromJust.excludeHiddenEntry (not .("/." `isInfixOf`))) >>= (return.fromJust.includeEnableExtensions ["hs","lhs"] ))
   let pre_nodes = getPreNodesFromRectAndTree (RectPH rectToDraw False 0) tree_only_hs  :: [PreNode]
   let inner_svg = sortBy (\e f -> if X.tagName e == Just "rect" then LT else GT) $ map (pre2XNode.modifyText) pre_nodes :: [X.Node]
-  writeIntoHtml "output.html" rectToDraw inner_svg
-  
+  if (isJust outputFile) then B.writeFile (fromJust outputFile) $ toSvgNode  rectToDraw inner_svg
+                         else B.putStr $ toSvgNode rectToDraw inner_svg
