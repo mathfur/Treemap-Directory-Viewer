@@ -1,23 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Types where
 
-import Test.QuickCheck
-import Control.Applicative
 import Control.Arrow
 import Numeric
 import Data.Data
 
-data Tree a b = Leaf a b | Branch a [Tree a b] deriving (Eq,Show)
+data Tree a b = Leaf Int a b | Branch Int a [Tree a b] deriving (Eq,Show)
 
 class HaveVolume a where
   volume :: a -> Float
 
 instance HaveVolume b => HaveVolume (Tree a b) where
-  volume (Leaf a b) = volume b
-  volume (Branch s ts) = sum $ map volume ts
+  volume (Leaf _ _ b) = volume b
+  volume (Branch _ _ ts) = sum $ map volume ts
 
 instance (Eq a,Eq b,HaveVolume b) => Ord (Tree a b) where
   t1 <= t2 = (volume t1 <= volume t2)
@@ -31,6 +30,8 @@ instance HaveVolume Int where
 type Label = String
 
 type Html = String
+
+type FileSize = Int
 
 -- | Rect with information whichever Portrait or Horizontal.
 data RectPH = RectPH {
@@ -86,25 +87,6 @@ bottom :: Rect -> Float
 bottom = uncurry (+) . (centerY &&& ((/2).width))
   
 ----------------------------------------------------------------------
-instance Arbitrary RectPH where
-  arbitrary = RectPH <$> 
-      (arbitrary :: Gen Rect) <*>
-      (arbitrary :: Gen Bool) <*>
-      (arbitrary :: Gen Int)
-
-instance Arbitrary Rect where
-  arbitrary = Rect <$> 
-      (arbitrary :: Gen Float) <*>
-      (arbitrary :: Gen Float) <*>
-      (arbitrary :: Gen Float) <*>
-      (arbitrary :: Gen Float)
-
-instance (Arbitrary a,Arbitrary b) => Arbitrary (Tree a b) where
-  arbitrary = oneof [
-      Leaf <$> arbitrary <*> arbitrary,
-      Branch <$> arbitrary <*> listOf arbitrary
-    ]
-
 
 data Option  = Option {
   output :: Maybe String,

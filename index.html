@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<body>
+<script>
+
+var margin = {top: 40, right: 10, bottom: 10, left: 10},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+var treemap = d3.layout.treemap()
+                .size([width, height])
+                .sticky(true)
+                .value(function(d) { return d.size; });
+
+var svg = d3.select("body")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom);
+
+var base = svg.append("g")
+              .attr("transform", "translate(" + margin.left + ", " + margin.top + ")");
+
+d3.json("input.json", function(error, root) {
+  var node = base.datum(root).selectAll("rect.nodes")
+                 .data(treemap.nodes)
+                 .enter()
+                 .sort(function(a, b){ return b.depth < a.depth })
+                 .append("rect")
+                 .attr("stroke-width",1)
+                 .attr("stroke","white")
+                 .attr("fill", "#A5EFCC")
+                 .attr("fill-opacity", function(d) { return 1.0 / (d.depth + 2) })
+                 .call(position_rect)
+
+  var node = base.selectAll("text")
+                 .data(treemap.nodes)
+                 .enter()
+                 .sort(function(a, b){ return b.depth < a.depth })
+                 .append("text")
+                 .style("fill", "#6B9BCC")
+                 .attr("fill-opacity", function(d) { return 1.0 / (d.depth + 1); })
+                 .attr("font-size", function(d){ return text_size(d.dx, d.basename) })
+                 .attr("text-anchor", "middle")
+                 .text(function(d) { return d.basename });
+                 .call(position_text)
+});
+
+function position_rect() {
+  this.attr("x", function(d) { return d.x; })
+      .attr("y", function(d) { return d.y; })
+      .attr("width", function(d) { return d.dx - 1; })
+      .attr("height", function(d) { return d.dy - 1; });
+}
+
+function position_text() {
+  this.attr("x", function(d) { return (d.x + d.dx/2); })
+      .attr("y", function(d) { return (d.y + d.dy/2 + text_size(d.dx, d.basename)/4); })
+}
+
+function text_size(width, str){
+  return width / str.length;
+}
+
+</script>
+</body>
