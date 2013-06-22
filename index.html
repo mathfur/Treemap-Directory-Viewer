@@ -42,8 +42,8 @@ d3.json("input.json", function(error, root) {
                  .attr("fill-opacity", function(d) { return 1.0 / (d.depth + 1); })
                  .attr("font-size", function(d){ return text_size(d.dx, d.basename) })
                  .attr("text-anchor", "middle")
-                 .text(function(d) { return d.basename });
-                 .call(position_text)
+                 .text(function(d) { return d.basename })
+                 .call(position_text);
 });
 
 function position_rect() {
