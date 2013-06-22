@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <body>
+<button id="grep">GREP</button>
 <script>
 
 var margin = {top: 40, right: 10, bottom: 10, left: 10},
@@ -33,6 +34,7 @@ d3.json("input.json", function(error, root) {
                  .attr("fill", "#A5EFCC")
                  .attr("fill-opacity", function(d) { return 1.0 / (d.depth + 2) })
                  .attr("title", function(d) { return d.children ? null : (d.name + "(" + d.size + ")") })
+                 .attr("id", function(d) { return d.name.replace(/\//g, '_')  })
                  .call(position_rect)
 
   var node = base.selectAll("text")
@@ -47,6 +49,16 @@ d3.json("input.json", function(error, root) {
                  .text(function(d) { return d.depth == 0 ? null : d.basename })
                  .call(position_text);
 });
+
+d3.select("#grep")
+  .on("click", function(){
+          d3.csv("grep_result.txt", function(d){
+                  for(var i = 0; i < d.length;i++){
+                          d3.select("#" + d[i].path.replace(/\//g, '_'))
+                            .attr("fill", "#f00");
+                  }
+          })
+  })
 
 function position_rect() {
   this.attr("x", function(d) { return d.x; })
